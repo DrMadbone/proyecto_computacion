@@ -21,7 +21,7 @@ echo "Actualizando sistema"
 sudo apt update -y
 sudo apt upgrade -y
 
-echo "---------------------------------------------------------"
+echo "========================================================="
 if ! command -v tailscale >/dev/null
 then
         echo "Instalando Tailscale..."
@@ -34,14 +34,16 @@ then
 else
         echo "Tailscale ya esta instalado"
 fi
+echo "========================================================="
+echo ""
 
-
-echo "---------------------------------------------------------"
+echo "========================================================="
 echo "Instalando Octoprint..."
+echo "========================================================="
 if [ ! -f "${OCTO_PATH}/bin/octoprint" ]; then
         mkdir -p "$OCTO_PATH"
         chown "$USER_NAME":"$USER_NAME" "$OCTO_PATH"
-        sudo apt install python3 python3-venv python3-pip build-essential
+        sudo apt install -y python3 python3-venv python3-pip build-essential
         python3 -m venv  "${OCTO_PATH}"
         "${OCTO_PATH}/bin/pip" install --upgrade pip
         "${OCTO_PATH}/bin/pip" install OctoPrint
@@ -49,65 +51,83 @@ if [ ! -f "${OCTO_PATH}/bin/octoprint" ]; then
         sudo usermod -a -G dialout $USER_NAME
 
         sudo tee /etc/systemd/system/octoprint.service > /dev/null <<EOF
-        [Unit]
-        Description=OctoPrint Daemon
-        After=network.target
+[Unit]
+Description=OctoPrint Daemon
+After=network.target
 
-        [Service]
-        Type=simple
-        User=$USER_NAME
-        ExecStart=${OCTO_PATH}/bin/octoprint serve
-        WorkingDirectory=$OCTO_PATH
-        Restart=always
+[Service]
+Type=simple
+User=$USER_NAME
+ExecStart=${OCTO_PATH}/bin/octoprint serve
+WorkingDirectory=$OCTO_PATH
+Restart=always
 
-        [Install]
-        WantedBy=multi-user.target
-        EOF
+[Install]
+WantedBy=multi-user.target
+EOF
 
-        sudo systemctl daemon-reload
-        sudo systemctl enable octoprint
-        sudo systemctl start octoprint
-        echo "OctoPrint instalado"
+sudo systemctl daemon-reload
+sudo systemctl enable octoprint
+sudo systemctl start octoprint
+echo "OctoPrint instalado"
 else
         echo "Octoprint ya esta instalado"
+fi
 
 #-------------------------      CASA_OS         ------------------------
-echo "-------------------------------------------"
+echo "========================================================="
 if ! command -v casaos >/dev/null; then
     echo "Instalando CasaOS..."
     curl -fsSL https://get.casaos.io | bash
 else
     echo "CasaOS ya está instalado"
 fi
-
+echo "========================================================="
 #-----------------------        SAMBA           ------------------------
-echo "--------------------------------------------"
+echo "========================================================="
 echo "Instalando Samba..."
-apt install -y samba
-mkdir -p "$SHARE_DIR"
-chown "$USER_NAME:$USER_NAME" "$SHARE_DIR"
-chmod 755 "$SHARE_DIR"
+echo "========================================================="
+if command -v smbd >/dev/null 2>&1; then
+    echo "Samba ya está instalado"
+else
+    # Solicitar directorio personalizado
+    echo "Ingrese la ruta para la carpeta compartida"
+    echo "Presione Enter para usar el directorio por defecto: ${SHARE_DIR}"
+    read -p "Ruta: " CUSTOM_SHARE_DIR
+    
+    # Si el usuario no ingresa nada, usar el directorio por defecto
+    #-n (not zero)
+    if [ -n "$CUSTOM_SHARE_DIR" ]; then
+        SHARE_DIR="$CUSTOM_SHARE_DIR"
+    fi
+    
+    echo "Usando directorio: $SHARE_DIR"
+    
+    apt install -y samba
+    mkdir -p "$SHARE_DIR"
+    chown "$USER_NAME:$USER_NAME" "$SHARE_DIR"
+    chmod 755 "$SHARE_DIR"
 
-# Backup de configuración original
-cp /etc/samba/smb.conf /etc/samba/smb.conf.backup
+    # Backup de configuración original
+    cp /etc/samba/smb.conf /etc/samba/smb.conf.backup
 
-cat <<EOF >> /etc/samba/smb.conf
+    cat <<EOF >> /etc/samba/smb.conf
 [sambashare]
-    comment = Samba on Ubuntu
-    path = /home/${USER_NAME}/sambashare
-    read only = no
-    browsable = yes
-    guest ok = yes
-    create mask 0755
+comment = Samba on Ubuntu
+path = ${SHARE_DIR}
+read only = no
+browsable = yes
+guest ok = yes
+create mask 0755
 EOF
-ufw allow samba
-echo "Configure su contraseña para el usuario: $USER_NAME"
-smbpasswd -a "$USER_NAME"
-systemctl restart smbd.service nmbd.service
-echo "---> La carpeta compartida está en: $SHARE_DIR <---"
-echo "---> Puedes acceder desde otro dipositivo en:  //machine_ip/sambashare <---"
-echo ""
-
+    ufw allow samba
+    echo "Configure su contraseña para el usuario: $USER_NAME"
+    smbpasswd -a "$USER_NAME"
+    systemctl restart smbd.service nmbd.service
+    echo "---> La carpeta compartida está en: $SHARE_DIR <---"
+    echo "---> Puedes acceder desde otro dipositivo en:  //machine_ip/sambashare <---"
+    echo ""
+fi
 echo "========================================================="
 echo "INSTALACIÓN COMPLETADA"
 echo "========================================================="
