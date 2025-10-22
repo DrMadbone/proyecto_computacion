@@ -87,7 +87,7 @@ echo "========================================================="
 echo "========================================================="
 echo "Instalando Samba..."
 echo "========================================================="
-if command -v smbd >/dev/null 2>&1; then
+if grep -q "sambashare" /etc/samba/smb.conf; then
     echo "Samba ya está instalado"
 else
     # Solicitar directorio personalizado
